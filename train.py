@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 from model import get_vit_tiny_model
 from utils import get_dataloaders, TrainingConfig
 import os
 from typing import Dict, Tuple, List, Optional
+from datetime import datetime
 
 def train_model(
     model: nn.Module,
@@ -42,9 +43,10 @@ def train_model(
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate)
     scaler = GradScaler()
     
-    # Create checkpoints directory if needed
-    if config.save_checkpoints or config.save_best_model:
-        os.makedirs(config.checkpoint_dir, exist_ok=True)
+    # Create timestamped experiment directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    experiment_dir = os.path.join(config.checkpoint_dir, f"experiment_{timestamp}")
+    os.makedirs(experiment_dir, exist_ok=True)
     
     # Initialize training history
     history = {
@@ -63,7 +65,7 @@ def train_model(
             imgs, labels = imgs.to(device), labels.to(device)
             
             optimizer.zero_grad()
-            with autocast():
+            with autocast(device_type='cuda'):
                 outputs = model(imgs)
                 loss = criterion(outputs, labels)
             
@@ -83,7 +85,7 @@ def train_model(
         with torch.no_grad():
             for imgs, labels in val_loader:
                 imgs, labels = imgs.to(device), labels.to(device)
-                with autocast():
+                with autocast(device_type='cuda'):
                     outputs = model(imgs)
                     loss = criterion(outputs, labels)
                 val_loss += loss.item()
@@ -102,14 +104,14 @@ def train_model(
                 'val_loss': val_loss,
                 'num_classes': config.num_classes
             }
-            torch.save(checkpoint, f'{config.checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth')
+            torch.save(checkpoint, os.path.join(experiment_dir, f'checkpoint_epoch_{epoch+1}.pth'))
         
         # Save best model if enabled
         if config.save_best_model and val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model = model.state_dict()
             if config.save_checkpoints:
-                torch.save(checkpoint, f'{config.checkpoint_dir}/best_model.pth')
+                torch.save(checkpoint, os.path.join(experiment_dir, 'best_model.pth'))
             print(f"New best model saved with validation loss: {val_loss:.4f}")
     
     print("Training complete!")
@@ -123,7 +125,7 @@ def train_model(
             'num_classes': config.num_classes,
             'final_train_loss': history['train_loss'][-1],
             'final_val_loss': history['val_loss'][-1]
-        }, 'vit_tiny_model.pth')
+        }, os.path.join(experiment_dir, 'vit_tiny_model.pth'))
         print("Final model saved successfully!")
     
     # Load best model if available
