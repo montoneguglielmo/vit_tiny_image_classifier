@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from model import get_vit_tiny_model
 from utils import get_dataloaders
 import argparse
@@ -19,7 +19,7 @@ def evaluate_model(model_path='vit_tiny_model.pth', batch_size=8):
     model.eval()  # Set model to evaluation mode
     
     # Get test dataloader
-    _, test_loader = get_dataloaders(batch_size=batch_size)
+    _, _, test_loader = get_dataloaders(batch_size=batch_size)
     
     # Initialize metrics
     correct = 0
@@ -32,7 +32,7 @@ def evaluate_model(model_path='vit_tiny_model.pth', batch_size=8):
         for imgs, labels in test_loader:
             imgs, labels = imgs.to(device), labels.to(device)
             
-            with autocast():
+            with autocast(device_type='cuda'):
                 outputs = model(imgs)
                 loss = criterion(outputs, labels)
             
