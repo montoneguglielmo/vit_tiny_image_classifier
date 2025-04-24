@@ -154,5 +154,3 @@ if __name__ == "__main__":
         config=config,
         return_history=True
     )
-    
-    
